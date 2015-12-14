@@ -1,0 +1,354 @@
+---
+title: "TWTR Stock Analysis"
+author: "Youqing Xiang"
+date: "December 12, 2015"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE)
+```
+
+### Introduction
+It has been not easy for TWTR stock this year. The worst of all, TWTR stock recently even lost its battle for staying above its IPO price, which is $26 per share. I am currently holding TWTR stock. For several times, I could not decide what to do: sell all or buy more? So, one aim of this project is to analyze TWTR stock and come up short-term investment strategy. Because sentiment analysis of twitter data is gaining more and more attention, this project also includes sentiment analysis to gain the first hand experience regarding to the value of twitter data. By doing all these, I am hoping to gain deep understanding about Twitter company and then have some ideas about TWTR stock long-term investment strategy.
+
+### Data Collection
+This project collects data in three different ways:
+
+* Web scraping history TWTR stock price from Yahoo Finance [1] in Python
+* Manually extracting the data about Twitter company metrics and financials [2] from TWTR Quarter Earning Result
+* Web scrapping tweets [3] about TWTR stock in R
+
+### Data Analysis
+#### Part I: Analysis of history TWTR stock price
+
+```{r}
+#Load and transform data
+library(ggplot2)
+library(scales)
+TWTR <- read.csv('TWTR.csv', header=TRUE, stringsAsFactors = FALSE)
+TWTR$Date <- as.Date(TWTR$Date)
+```
+
+**1. TWTR Stock Price Change Over Time**
+
+```{r}
+ggplot(data=TWTR, aes(x=Date, y=Adj.Close)) + 
+  geom_line() +
+  labs(title='TWTR Price Over Time',
+       y='Adj.Close Price') +
+  geom_hline(aes(yintercept=26),color='red',linetype='dashed',size=1) +
+  geom_text(aes(x=TWTR$Date[200],y=28,label='IPO Price = 26',col='red')) +
+  theme(legend.position="none")
+```
+
+From the above plot, I can see that TWTR stock is really in bad situation, especially recently. 
+
+**2.Histogram plot of History TWTR Stock Price**
+
+```{r}
+ggplot(data=TWTR, aes(x=Adj.Close)) +
+  geom_histogram(binwidth=3) +
+  labs(x='Adj.Close Price',
+       y='Count') +
+  labs(title='Histogram of TWTR Price') +
+  geom_vline(aes(xintercept=36.0),color='red', linetype='dashed',size=1.5) +
+  geom_text(aes(x=36,y=-2,label='My Price', col='yellow', size=1.5)) +
+  theme(legend.position="none")
+```
+
+From the above histogram plot, I can see the price I bought was not good, but not terrbile bad either.
+
+**3. Boxplot of History TWTR Stock Price**
+
+```{r}
+ggplot(data=TWTR, aes(x=factor(0), y=Adj.Close)) +
+  geom_boxplot() +
+  labs(y='Adj.Close Price', x='',
+       title='Boxplot of TWTR Price')
+```
+
+From the above boxplot, I can see that the current TWTR stock price was at the very low end of histroy price range. In history, at 50% of time, the stock price was between $35 and $49.
+
+**4. Comparing TWTR and S&P500 Performance in 2015**
+
+```{r}
+# Load and transform data
+SP500 <- read.csv('S&P500.csv', header=TRUE, stringsAsFactors = FALSE)
+SP500$Date <- as.Date(SP500$Date)
+SP500_15 <- SP500[SP500$Date >= as.Date('2014-12-31'),]
+SP500_15$Group <- rep('SP500',length(SP500_15$Date))
+SP500_15$Yield <- round((SP500_15$Adj.Close - 2058.90)/2058.90*100,1)
+TWTR_15 <- TWTR[TWTR$Date >= as.Date('2014-12-31'),]
+TWTR_15$Group <- rep('TWTR',length(TWTR_15$Date))
+TWTR_15$Yield <- round((TWTR_15$Adj.Close - 35.87)/35.87*100,1)
+my_df <- rbind(SP500_15,TWTR_15)
+# ggplot
+ggplot(data=my_df, aes(x=Date, y=Yield, colour=Group)) + 
+  geom_line() +
+  labs(title='TWTR and SP500 YTD Over Time', fill='') +
+  theme(legend.position = 'top')
+```
+
+From the comparing between TWTR and SP500 YTD change, I can see that although SP500 did not performance well this year, TWTR is really in bad shape. So far, the year to date yield is around negative 30%.
+
+Overall, the history TWTR price tells us a depressing story.
+
+#### Part II: Analysis of TWTR ER Data
+
+```{r}
+#Load and transform data
+twtr_er <- read.csv(file='twtr_er.csv', skip=1, stringsAsFactors = FALSE)
+library(tidyr)
+twtr_er <- gather(twtr_er,time,number,2:16)
+names(twtr_er) <- c('Group','Time','Number')
+twtr_er$Number <- as.numeric(twtr_er$Number)
+twtr_er$Group <- as.character(twtr_er$Group)
+```
+
+**1. Monthly Active Users**
+
+```{r}
+library(scales)
+twtr_user <- twtr_er[twtr_er$Group=='monthly active users: United States' | 
+                       twtr_er$Group =='monthly active users: International',]
+twtr_user$Group <- as.character(twtr_user$Group)
+twtr_user$Group[twtr_user$Group=='monthly active users: United States'] <- 'United States'
+twtr_user$Group[twtr_user$Group=='monthly active users: International'] <- 'International'
+ggplot(data=twtr_user, 
+       aes(x=Time,y=Number,fill=Group)) +
+  geom_bar(stat='identity') +
+  labs(y='Number (million)', fill='',
+       title='Monthly Active Users Over Time') +
+  theme(legend.position = 'top')
+```
+
+```{r}
+twtr_user_p <- twtr_er[twtr_er$Group=='monthly active users: United States %' | 
+                         twtr_er$Group =='monthly active users: International %',]
+twtr_user_p$Group[twtr_user_p$Group=='monthly active users: United States %'] <- 'United States'
+twtr_user_p$Group[twtr_user_p$Group=='monthly active users: International %'] <- 'International'
+twtr_user_p$Group <- as.factor(twtr_user_p$Group)
+ggplot(data=twtr_user_p, 
+       aes(x=Time,y=Number,fill=Group)) +
+  geom_bar(stat='identity') +
+  labs(y='Increasing Percentage (%)',
+       title='Monthly Active Users Increasing Percentage Over Time',
+       fill='') +
+  theme(legend.position = 'top')
+```
+
+From the above plots, I can see that monthly active users increasing is getting slow. In US, in the past two quaters, there was no increasing at all.
+
+**2. Ad Engagements Growth**
+
+```{r}
+ggplot(data=twtr_er[twtr_er$Group=='Ad Engagements (Growth) %' & 
+                    !is.na(twtr_er$Number),],
+       aes(x=Time,y=Number)) +
+  geom_bar(stat='identity') +
+  labs(y='Growth %',
+       title='Ad Engagements (Growth) % Over Time')
+```
+
+From the above plot, I can see the company put some efforts in Ad Engagements Growth during the past two quaters.
+
+**3. GAAP Revenue**
+
+```{r}
+# Worldwide - number change
+ggplot(data=twtr_er[twtr_er$Group=='GAAP Revenue (Worldwide)',], 
+       aes(x=Time,y=Number)) +
+  geom_bar(stat='identity') +
+  labs(y='Number (million)',
+       title='Worldwide GAAP Revenue Over Time')
+
+# Worldwide - percentage change
+ggplot(data=twtr_er[twtr_er$Group=='GAAP Revenue (Worldwide) %',], 
+       aes(x=Time,y=Number)) +
+  geom_bar(stat='identity') +
+  labs(y='Percentage (%)',
+       title='Worldwide GAAP Revenue Increasing Percentage Over Time')
+
+# United States and International - number change
+twtr_gaap <- twtr_er[twtr_er$Group=='GAAP Revenue (United States)' | 
+                         twtr_er$Group =='GAAP Revenue (International)',]
+twtr_gaap$Group[twtr_gaap$Group=='GAAP Revenue (United States)'] <- 'United States'
+twtr_gaap$Group[twtr_gaap$Group=='GAAP Revenue (International)'] <- 'International'
+twtr_gaap$Group <- as.factor(twtr_gaap$Group)
+
+ggplot(data=twtr_gaap, 
+       aes(x=Time,y=Number,fill=Group)) +
+  geom_bar(stat='identity') +
+  labs(y='Number (million)',
+       title='GAAP Revenue Over Time',
+       fill='') +
+  theme(legend.position = 'top')
+
+# United States and International - percentage change
+twtr_gaap_p <- twtr_er[twtr_er$Group=='GAAP Revenue (United States) %' | 
+                       twtr_er$Group =='GAAP Revenue (International) %',]
+twtr_gaap_p$Group[twtr_gaap_p$Group=='GAAP Revenue (United States) %'] <- 'United States'
+twtr_gaap_p$Group[twtr_gaap_p$Group=='GAAP Revenue (International) %'] <- 'International'
+twtr_gaap_p$Group <- as.factor(twtr_gaap_p$Group)
+
+ggplot(data=twtr_gaap_p, 
+       aes(x=Time,y=Number,fill=Group)) +
+  geom_bar(stat='identity') +
+  labs(y='Percentage (%)',
+       title='GAAP Revenue Increasing Percentage Over Time',
+       fill='') +
+  theme(legend.position = 'top')
+
+# Advertising Revenue and Data Licensing & Other - number change
+twtr_gaap_2 <- twtr_er[twtr_er$Group=='Advertising Revenue' | 
+                       twtr_er$Group =='Data Licensing & Other',]
+twtr_gaap_2$Group <- as.factor(twtr_gaap_2$Group)
+
+ggplot(data=twtr_gaap_2, 
+       aes(x=Time,y=Number,fill=Group)) +
+  geom_bar(stat='identity') +
+  labs(y='Number (million)',
+       title='GAAP Revenue Over Time',
+       fill='') +
+  theme(legend.position = 'top')
+
+# Advertising Revenue and Data Licensing & Other - percentage change
+twtr_gaap_2p <- twtr_er[twtr_er$Group=='Advertising Revenue %' | 
+                         twtr_er$Group =='Data Licensing & Other %',]
+twtr_gaap_2p$Group <- as.character(twtr_gaap_2p$Group)
+twtr_gaap_2p$Group[twtr_gaap_p$Group=='Advertising Revenue %'] <- 'Advertising Revenue'
+twtr_gaap_2p$Group[twtr_gaap_p$Group=='Data Licensing & Other %'] <- 'Data Licensing & Other'
+twtr_gaap_2p$Group <- as.factor(twtr_gaap_2p$Group)
+
+ggplot(data=twtr_gaap_2p, 
+       aes(x=Time,y=Number,fill=Group)) +
+  geom_bar(stat='identity') +
+  labs(y='Percentage (%)',
+       title='GAAP Revenue Increasing Percentage Over Time',
+       fill='') +
+  theme(legend.position = 'top')
+```
+
+From the above plots, I can see that there is a continuous increasing of GAAP Revenue, although this increasing was not always in a steady way; there is a nice increasing of GAAP Revenue from outside of United States, although United States still contributed most of GAAP Revenue; Advertising Revenue is still dominant, but I can see more revenue coming from Data Licensing & Other.
+
+**4. Net Loss**
+
+```{r}
+### Net Loss - number
+ggplot(data=twtr_er[twtr_er$Group=='Net Loss',], 
+       aes(x=Time,y=Number)) +
+  geom_bar(stat='identity') +
+  labs(y='Number (million)',
+       title='Net Loss Over Time')
+
+### Net Loss - percentage
+ggplot(data=twtr_er[twtr_er$Group=='Net Loss %',], 
+       aes(x=Time,y=Number)) +
+  geom_bar(stat='identity') +
+  labs(y='Percentage(%)',
+       title='Net Loss Percentage Change Over Time')
+```
+
+From the above plots, I can see there was a huge net loss during the last quarter of 2013, which was at the time when Twitter company started to offer stock in public. It is understandable that big expanding happened at that time. And I also see the effort the company is trying to bring down the net loss after that time.
+
+Overall, the company metrics and financials data from TWTR Quarter Earning Result showed me that the company growth is slowing down and this is definately a negative factor for me. However, I did see that the company is trying to bring in more Revenue and controlling or even cutting down the net loss. In addition, I surprised to see the increasing revenue contribution from Data licensing and other. If the market starts to see more and more value of twitter data, this could be a new growth point for Twitter company.
+
+#### Part III : Sentiment Analysis of Tweets
+For this part of analysis, I use mjhea0's repository [4] as reference.
+
+```{r}
+# Tweets transformation
+require(stringr)
+require(gridExtra)
+require(grid)
+twtr_tweets <- read.csv('twtr_121215.csv')
+twtr_tweets <- twtr_tweets[,c('text','created')]
+twtr_tweets$created <- unlist(twtr_tweets$created)
+twtr_tweets$created <- str_extract_all(twtr_tweets$created,
+                                       '[0-9]{4}-[0-9]{2}-[0-9]{2}')
+twtr_tweets$created <- unlist(twtr_tweets$created)
+twtr_tweets$created <- as.Date(twtr_tweets$created)
+pos = scan('positive-words.txt',what='character',comment.char = ';')
+neg = scan('negative-words.txt',what='character',comment.char = ';')
+score.tweets <- function(tweets)
+{
+  Tweets.text = tweets$text
+  Tweets.text = gsub('[[:punct:]]','', Tweets.text)
+  Tweets.text = gsub('[[:cntrl:]]','', Tweets.text)
+  Tweets.text = gsub('\\d+','', Tweets.text)
+  Tweets.text = gsub('[^[:graph:]]',' ', Tweets.text)
+  Tweets.text = tolower(Tweets.text)
+  word.list = str_split(Tweets.text,'\\s+')
+  words = unlist(word.list)
+  pos.matches = match(words, pos)
+  neg.matches = match(words, neg)
+  pos.matches = !is.na(pos.matches)
+  neg.matches = !is.na(neg.matches)
+  score = sum(pos.matches) - sum(neg.matches)
+  return(score)
+}
+
+# Combine Tweets scores, Number of Tweets and Stock Price into one dataframe
+scores <- by(twtr_tweets,twtr_tweets$created,FUN=score.tweets)
+tweets <- by(twtr_tweets$text,twtr_tweets$created,FUN=length)
+average_scores <- round(scores/tweets,2)
+date <- names(average_scores)
+my_scores <- unname(average_scores)
+my_scores <- as.vector(my_scores)
+tweet <- unname(tweets)
+tweet <- as.vector(tweet)
+scores_df <- data.frame(Date=date,score=my_scores,n.tweet=tweet)
+scores_df$Date <- as.character(scores_df$Date)
+scores_df$date <- as.Date(scores_df$Date)
+TWTR <- read.csv('TWTR.csv', header=TRUE, stringsAsFactors = FALSE)
+TWTR$Date <- as.Date(TWTR$Date)
+s_TWTR <- TWTR[,c(1,7)]
+s_TWTR <- TWTR[TWTR$Date<=as.Date('2015-12-12') &
+                 TWTR$Date>=as.Date('2015-12-03'),]
+s_TWTR <- s_TWTR[,c(1,7)]
+scores_df$Date <- as.character(scores_df$Date)
+scores_df$Date <- as.Date(scores_df$Date)
+a_df <- merge(scores_df, s_TWTR, by='Date')
+a_df$Date <- as.character(a_df$Date)
+a_df$Date <- as.factor(a_df$Date)
+a_df$Price.Change <- rep(0,7)
+for (i in 2:7) {
+  a_df$Price.Change[i] <-
+    round((a_df$Adj.Close[i] - a_df$Adj.Close[i-1])/a_df$Adj.Close[i-1]*100,2)
+}
+a_df$Date <- as.character(a_df$Date)
+a_df$Date <- as.Date(a_df$Date)
+
+# ggplot
+plot1 <- ggplot(a_df, aes(Date,Adj.Close)) + 
+  geom_line(colour = "green") +
+  labs(y='Price',x='') 
+plot2 <- ggplot(a_df, aes(Date,Price.Change)) + 
+  geom_line(colour = "purple") +
+  labs(y='Price %',x='')
+plot3 <- ggplot(a_df, aes(Date,n.tweet)) + 
+  geom_line(colour = "red") +
+  labs(y='N.Tweets',x='')
+plot4 <- ggplot(a_df, aes(Date,score)) + 
+  geom_line(colour = "blue") +
+  labs(y='S.Score',x='')
+grid.newpage()
+grid.draw(rbind(ggplotGrob(plot1), ggplotGrob(plot2),ggplotGrob(plot3), ggplotGrob(plot4),size = "last"))
+```
+
+On December 10, 2015, Twitter announced that it would start showing ads to the roughly 500 million unregistered users who visit Twitter every month. And the market gave very positive response for Twitter's new ad strategry and TWTR stock price rose close to 7%. From the above graphs, both number of tweets and sentiment score caught this change. On that day, more tweets containing '$TWTR' was produced and the sentiment score {Here: the score = (total number of positive words - total number of negative words) / total number of tweets} for those tweets went up sharply.
+
+#### Part IV: Conclusion
+In this project, I showed that Twitter company is experiencing low active user growth, unstable and slow GAAP Revenue increasing and big net loss, which might lead to the poor performance on stock market this year. Except for all the negative numbers, I did see some positive aspects, including undercontrol net loss, nice Ad Engagement growth during the past two quarters and steady increasing revenue from data licensing & other.
+
+In addition, I had very positive experience with sentiment analysis by using Tweets. This project showed me that it could be possible to use Twitter data to predict or check the trend of stock price. Twitter data could also be very value for other usages. Twitter company could generate more revenue from data licensing in the future.
+
+Right now, I am holding TWTR stock and my average price is around $36 per share. Based on my analysis, "hold" would be my short term strategy. For long term, it would depend on how the company performs in the future. For next quarter earning report, I will continue to pay attention to the growth of monthly active users and GAAP revenue. Slow growth is ok, but no growth of monthly active users will definately hurt the company in long term. And I will also expect the company cuts down the net loss. As a data scientist, I believe in the value of data. So, how much revenue from data licensing will always be one of my check points.
+
+#### References
+* [1] http://finance.yahoo.com
+* [2] https://investor.twitterinc.com/results.cfm
+* [3] https://twitter.com/search-home
+* [4] https://github.com/mjhea0/twitter-sentiment-analysis
